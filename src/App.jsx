@@ -23,6 +23,7 @@ const CARD_DATA = {
   "Cannon": { elixir: 3, role: ["building","grounddef"], tags: [] },
   "Fireball": { elixir: 4, role: ["bigspell"], tags: [] },
   "Mega Minion": { elixir: 3, role: ["airdef","dps"], tags: ["air"] },
+  "Musketeer": { elixir: 4, role: ["airdef","support"], tags: ["air"] },
 };
 
 export default function App() {
@@ -30,9 +31,9 @@ export default function App() {
   const [deck, setDeck] = useState(DEFAULT_DECK);
   const [advice, setAdvice] = useState("");
   const [analysis, setAnalysis] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
   const [newCard, setNewCard] = useState("");
 
-  // trophy-based high-level tip (like before)
   useEffect(() => {
     let suggestion = "";
     if (trophies < 3000) {
@@ -70,7 +71,7 @@ export default function App() {
       if (data.role?.includes("smallspell")) smallSpell++;
     });
 
-    const avgElixir = currentDeck.length ? (totalElixir / currentDeck.length) : 0;
+    const avgElixir = currentDeck.length ? totalElixir / currentDeck.length : 0;
 
     const messages = [];
 
@@ -113,22 +114,97 @@ export default function App() {
     return {
       avgElixir: Number(avgElixir.toFixed(2)),
       messages,
+      airDef,
+      splash,
+      building,
+      wincon,
+      smallSpell,
     };
+  }
+
+  function buildSuggestions(deckAnalysis, currentDeck) {
+    const s = [];
+
+    // 1) No building but we’re in hog/RG range
+    if (!deckAnalysis.building && trophies >= 3200) {
+      // find a cheap cycle card to replace
+      const replaceTarget =
+        currentDeck.includes("Skeletons") ? "Skeletons" :
+        currentDeck.includes("Minions") ? "Minions" :
+        currentDeck[currentDeck.length - 1];
+      s.push({
+        problem: "You have no defensive building.",
+        replace: replaceTarget,
+        with: "Cannon",
+        reason: "Cannon helps vs Hog Rider, Giant, Royal Giant, and Pekka kites."
+      });
+    }
+
+    // 2) Weak air
+    if (deckAnalysis.airDef === 0) {
+      s.push({
+        problem: "You are weak to air decks (Lava, Balloon, Baby Dragon spam).",
+        replace: currentDeck.includes("Skeletons") ? "Skeletons" : currentDeck[0],
+        with: currentDeck.includes("Minions") ? "Mega Minion" : "Minions",
+        reason: "You need at least 1–2 reliable air DPS cards."
+      });
+    } else if (deckAnalysis.airDef === 1) {
+      s.push({
+        problem: "Air is only covered by one card.",
+        replace: "Skeletons",
+        with: "Mega Minion",
+        reason: "Gives you second air option and survives Arrows/Log."
+      });
+    }
+
+    // 3) No big spell
+    if (deckAnalysis.smallSpell >= 1 && !currentDeck.includes("Fireball")) {
+      s.push({
+        problem: "You only have small spells.",
+        replace: currentDeck.includes("Minions") ? "Minions" : "Skeletons",
+        with: "Fireball",
+        reason: "Fireball lets you remove Musketeer/Wizard/Flying Machine behind tanks."
+      });
+    }
+
+    // 4) Elixir too high
+    if (deckAnalysis.avgElixir > 4.0) {
+      // try to swap a 5-cost support for a 3-cost support
+      if (currentDeck.includes("Witch")) {
+        s.push({
+          problem: "Deck is a bit heavy for 3.8k trophies.",
+          replace: "Witch",
+          with: "Musketeer",
+          reason: "Musketeer is cheaper, better vs air, and safer on defense."
+        });
+      }
+    }
+
+    // fallback
+    if (s.length === 0) {
+      s.push({
+        problem: "Deck is already balanced.",
+        replace: null,
+        with: null,
+        reason: "You can start upgrading Giant → Witch → Baby Dragon in that order."
+      });
+    }
+
+    return s;
   }
 
   function handleAnalyze() {
     const result = analyzeDeck(deck);
     setAnalysis(result);
+    const sugg = buildSuggestions(result, deck);
+    setSuggestions(sugg);
   }
 
   function handleAddCard() {
     const cardName = newCard.trim();
     if (!cardName) return;
-    // keep deck at 8 cards max, replace last one if over
     let next = [...deck, cardName];
-    if (next.length > 8) {
-      next = next.slice(0, 8);
-    }
+    if (next.length > 8) next = next.slice(0, 8);
     setDeck(next);
     setNewCard("");
   }
@@ -273,6 +349,7 @@ export default function App() {
             borderRadius: "14px",
             padding: "1rem 1.1rem",
             lineHeight: 1.5,
+            marginBottom: "1rem",
           }}
         >
           <p style={{ marginBottom: "0.5rem" }}>
@@ -282,6 +359,43 @@ export default function App() {
             {analysis.messages.map((m, idx) => (
               <li key={idx} style={{ marginBottom: "0.35rem" }}>
                 {m}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* suggestions */}
+      {suggestions.length > 0 && (
+        <div
+          style={{
+            background: "rgba(0,0,0,0.4)",
+            borderRadius: "14px",
+            padding: "1rem 1.1rem",
+            lineHeight: 1.5,
+            marginBottom: "2rem",
+          }}
+        >
+          <h3 style={{ marginBottom: "0.5rem", fontSize: "1.05rem" }}>
+            🛠 Suggested replacements
+          </h3>
+          <ul style={{ paddingLeft: "1.2rem" }}>
+            {suggestions.map((s, idx) => (
+              <li key={idx} style={{ marginBottom: "0.5rem" }}>
+                <strong>{s.problem}</strong>
+                {s.replace && s.with ? (
+                  <>
+                    <br />
+                    Replace <strong>{s.replace}</strong> → <strong>{s.with}</strong>
+                    <br />
+                    <small style={{ opacity: 0.8 }}>{s.reason}</small>
+                  </>
+                ) : (
+                  <>
+                    <br />
+                    <small style={{ opacity: 0.8 }}>{s.reason}</small>
+                  </>
+                )}
               </li>
             ))}
           </ul>
