@@ -2,41 +2,55 @@ export default async function handler(req, res) {
   const API_TOKEN = process.env.CLASH_API_TOKEN;
 
   try {
-    // If you have your official token, use the real API.
-    // Otherwise, fall back to the public RoyaleAPI mirror.
-    const useOfficial = !!API_TOKEN;
-    const url = useOfficial
-      ? "https://api.clashroyale.com/v1/cards"
-      : "https://royaleapi.dev/api/cards";
+    // 1) if you have an official token, use Supercell API
+    if (API_TOKEN) {
+      const resp = await fetch("https://api.clashroyale.com/v1/cards", {
+        headers: { Authorization: `Bearer ${API_TOKEN}` },
+      });
 
-    const headers = useOfficial
-      ? { Authorization: `Bearer ${API_TOKEN}` }
-      : {};
+      if (!resp.ok) {
+        const text = await resp.text();
+        return res
+          .status(resp.status)
+          .json({ error: "Upstream error (official)", detail: text });
+      }
 
-    const resp = await fetch(url, { headers });
+      const data = await resp.json();
+      const cards = (data.items || []).map((c) => ({
+        name: c.name,
+        elixir: c.elixirCost ?? 3,
+        role: [],
+        tags: [],
+      }));
+
+      return res.status(200).json({ cards });
+    }
+
+    // 2) fallback: public static JSON from RoyaleAPI GitHub
+    const fallbackUrl =
+      "https://royaleapi.github.io/cr-api-data/json/cards.json";
+    const resp = await fetch(fallbackUrl);
 
     if (!resp.ok) {
       const text = await resp.text();
-      return res.status(resp.status).json({ error: "Upstream error", detail: text });
+      return res
+        .status(resp.status)
+        .json({ error: "Upstream error (fallback)", detail: text });
     }
 
-    const data = await resp.json();
+    const data = await resp.json(); // this is REAL json
 
-    // Normalize both APIs into a consistent shape
-    const rawCards = data.items || data; // "items" for official, array for mirror
-    const cards = (rawCards || []).map((c) => ({
+    const cards = (data || []).map((c) => ({
       name: c.name,
-      elixir: c.elixir ?? c.elixirCost ?? 3,
-      // You can later enrich these with your own role logic
+      elixir: c.elixir ?? 3,
       role: [],
       tags: [],
     }));
 
     return res.status(200).json({ cards });
   } catch (err) {
-    return res.status(500).json({
-      error: "Failed to fetch cards",
-      detail: err.message,
-    });
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch cards", detail: err.message });
   }
 }
