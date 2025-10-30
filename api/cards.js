@@ -22,8 +22,9 @@ export default async function handler(req, res) {
 
     // 2) fallback: public JSON
     const resp = await fetch(
-      "https://raw.githubusercontent.com/RoyaleAPI/cr-api-data/master/json/cards.json"
+      "https://royaleapi.github.io/cr-api-data/json/cards.json"
     );
+
     if (!resp.ok) {
       const text = await resp.text();
       return res
