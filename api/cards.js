@@ -2,7 +2,7 @@ export default async function handler(req, res) {
   const API_TOKEN = process.env.CLASH_API_TOKEN;
 
   try {
-    // 1) official API if you ever get a token
+    // 1) if you ever get the official Clash Royale API token, use it
     if (API_TOKEN) {
       const resp = await fetch("https://api.clashroyale.com/v1/cards", {
         headers: { Authorization: `Bearer ${API_TOKEN}` },
@@ -16,11 +16,13 @@ export default async function handler(req, res) {
       }
 
       const data = await resp.json();
-      const cards = (data.items || []).map((c) => autoTag(c.name, c.elixirCost ?? 3));
+      const cards = (data.items || []).map((c) =>
+        autoTag(c.name, c.elixirCost ?? 3)
+      );
       return res.status(200).json({ cards });
     }
 
-    // 2) fallback: public JSON
+    // 2) fallback: public RoyaleAPI JSON (no token needed)
     const resp = await fetch(
       "https://royaleapi.github.io/cr-api-data/json/cards.json"
     );
@@ -59,6 +61,7 @@ function autoTag(name, elixir) {
     "Battle Ram",
     "Goblin Drill",
     "Lava Hound",
+    "Elite Royal Recruits" // just in case future stuff
   ];
   const buildings = [
     "Cannon",
@@ -69,7 +72,7 @@ function autoTag(name, elixir) {
     "Goblin Hut",
     "Barbarian Hut",
     "Tombstone",
-    "Elixir Collector",
+    "Elixir Collector"
   ];
   const spells = [
     "Zap",
@@ -82,11 +85,11 @@ function autoTag(name, elixir) {
     "Poison",
     "Freeze",
     "Earthquake",
-    "Snowball",
     "Giant Snowball",
+    "Snowball",
     "Barbarian Barrel",
     "Royal Delivery",
-    "Party Rocket",
+    "Party Rocket"
   ];
   const airUnits = [
     "Baby Dragon",
@@ -96,10 +99,8 @@ function autoTag(name, elixir) {
     "Lava Hound",
     "Inferno Dragon",
     "Phoenix",
-    "Super Archers",
-    "Super Magic Archer",
-    "Super Lava Hound",
     "Balloon",
+    "Flying Machine"
   ];
   const splashers = [
     "Wizard",
@@ -110,6 +111,7 @@ function autoTag(name, elixir) {
     "Bowler",
     "Mother Witch",
     "Ice Wizard",
+    "Super Archers"
   ];
 
   const role = [];
@@ -136,15 +138,16 @@ function autoTag(name, elixir) {
     tags.push("splash");
   }
 
-  // cheap cards → cycle
+  // cheap = cycle card
   if (elixir <= 2 && role.length === 0) {
     role.push("cycle");
+    tags.push("cycle");
   }
 
   return {
     name,
     elixir,
     role,
-    tags,
+    tags
   };
 }

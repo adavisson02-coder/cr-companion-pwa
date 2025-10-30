@@ -1,4 +1,16 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import "./App.css";
+
+const LOCAL_CARD_DATA = {
+  Giant: { elixir: 5, role: ["wincon", "tank"], tags: ["ground"] },
+  Witch: { elixir: 5, role: ["splash", "support"], tags: ["anti-swarm"] },
+  "Baby Dragon": { elixir: 4, role: ["splash", "air"], tags: ["air"] },
+  Valkyrie: { elixir: 4, role: ["splash"], tags: [] },
+  Log: { elixir: 2, role: ["spell"], tags: [] },
+  Zap: { elixir: 2, role: ["spell"], tags: [] },
+  Minions: { elixir: 3, role: ["air"], tags: ["air"] },
+  Skeletons: { elixir: 1, role: ["cycle"], tags: [] },
+};
 
 const DEFAULT_DECK = [
   "Giant",
@@ -11,396 +23,166 @@ const DEFAULT_DECK = [
   "Skeletons",
 ];
 
-const CARD_DATA = {
-  "Giant": { elixir: 5, role: ["wincon", "tank"], tags: ["ground"] },
-  "Witch": { elixir: 5, role: ["splash", "support"], tags: ["anti-swarm"] },
-  "Baby Dragon": { elixir: 4, role: ["splash", "airdef"], tags: ["air","splash"] },
-  "Valkyrie": { elixir: 4, role: ["splash", "grounddef"], tags: ["anti-swarm"] },
-  "Log": { elixir: 2, role: ["smallspell"], tags: ["ground-only"] },
-  "Zap": { elixir: 2, role: ["smallspell"], tags: ["reset","air-hit"] },
-  "Minions": { elixir: 3, role: ["airdef","dps"], tags: ["air"] },
-  "Skeletons": { elixir: 1, role: ["cycle"], tags: [] },
-  "Cannon": { elixir: 3, role: ["building","grounddef"], tags: [] },
-  "Fireball": { elixir: 4, role: ["bigspell"], tags: [] },
-  "Mega Minion": { elixir: 3, role: ["airdef","dps"], tags: ["air"] },
-  "Musketeer": { elixir: 4, role: ["airdef","support"], tags: ["air"] },
-};
+function analyzeDeck(deck, cardData) {
+  let totalElixir = 0;
+  const summary = {
+    wincon: 0,
+    building: 0,
+    spell: 0,
+    air: 0,
+    splash: 0,
+    cycle: 0,
+  };
 
-export default function App() {
-  const [trophies, setTrophies] = useState(3500);
-  const [deck, setDeck] = useState(DEFAULT_DECK);
-  const [advice, setAdvice] = useState("");
-  const [analysis, setAnalysis] = useState(null);
-  const [suggestions, setSuggestions] = useState([]);
-  const [newCard, setNewCard] = useState("");
-
-  useEffect(() => {
-    let suggestion = "";
-    if (trophies < 3000) {
-      suggestion =
-        "Try a simple Giant + Witch push deck. Defend first, then counter-push.";
-    } else if (trophies >= 3000 && trophies < 4000) {
-      suggestion =
-        "Use Giant–Witch–Baby Dragon as your core. Keep Zap for Inferno. Swap Skeletons → Cannon if you see Hog/RG.";
-    } else if (trophies >= 4000 && trophies < 5000) {
-      suggestion =
-        "Add Fireball or Mega Minion to handle mid-ladder air and stacked supports.";
-    } else {
-      suggestion =
-        "Tighten cycle and add a hard spell. Consider Miner/Balloon variants.";
-    }
-    setAdvice(suggestion);
-  }, [trophies]);
-
-  function analyzeDeck(currentDeck) {
-    let totalElixir = 0;
-    let wincon = false;
-    let airDef = 0;
-    let splash = 0;
-    let building = false;
-    let smallSpell = 0;
-
-    currentDeck.forEach((card) => {
-      const data = CARD_DATA[card];
-      if (!data) return;
-      totalElixir += data.elixir || 0;
-      if (data.role?.includes("wincon")) wincon = true;
-      if (data.role?.includes("airdef")) airDef++;
-      if (data.role?.includes("splash")) splash++;
-      if (data.role?.includes("building")) building = true;
-      if (data.role?.includes("smallspell")) smallSpell++;
+  deck.forEach((card) => {
+    const data = cardData[card];
+    if (!data) return;
+    totalElixir += data.elixir || 0;
+    (data.role || []).forEach((r) => {
+      if (summary[r] !== undefined) summary[r] += 1;
     });
+  });
 
-    const avgElixir = currentDeck.length ? totalElixir / currentDeck.length : 0;
+  const avgElixir = deck.length ? (totalElixir / deck.length).toFixed(2) : "0.0";
 
-    const messages = [];
+  const tips = [];
+  if (summary.wincon === 0)
+    tips.push("No win condition. Add Hog, Giant, Miner, or Royal Giant.");
+  if (summary.air === 0)
+    tips.push("No air defense. Add Minions, Mega Minion, Musketeer, or Baby Dragon.");
+  if (summary.splash === 0)
+    tips.push("No splash unit. Add Valkyrie, Witch, Wizard, or Baby Dragon.");
+  if (summary.building === 0)
+    tips.push("No defensive building. Add Cannon, Tesla, Bomb Tower, or Inferno Tower.");
+  if (summary.spell === 0)
+    tips.push("No spells. Add Zap, Log, Arrows, or Fireball.");
+  if (Number(avgElixir) > 4.0)
+    tips.push("Deck is heavy. Try to stay between 3.2 and 3.8 at 3.5–4k trophies.");
 
-    if (!wincon) {
-      messages.push("No clear win condition. Keep Giant or add Hog/Miner.");
-    } else {
-      messages.push("Win condition detected ✅");
-    }
+  return { avgElixir, summary, tips };
+}
 
-    if (airDef === 0) {
-      messages.push("Weak vs air. Add Minions/Mega Minion/Archers.");
-    } else if (airDef === 1) {
-      messages.push("Air defense is OK but thin. Protect Baby Dragon/Minions.");
-    } else {
-      messages.push("Air defense looks good ✅");
-    }
+function App() {
+  const [trophies, setTrophies] = useState(3500);
+  const [cardData, setCardData] = useState(LOCAL_CARD_DATA);
+  const [deck, setDeck] = useState(DEFAULT_DECK);
+  const [analysis, setAnalysis] = useState(null);
 
-    if (splash === 0) {
-      messages.push("No splash damage. Add Valkyrie, Wizard, or Baby Dragon.");
-    } else {
-      messages.push("Splash coverage good ✅");
-    }
+  // load live cards from our API
+  useEffect(() => {
+    async function loadCards() {
+      try {
+        const resp = await fetch("/api/cards");
+        if (!resp.ok) return;
+        const json = await resp.json();
+        if (!json.cards) return;
 
-    if (!building && trophies >= 3200) {
-      messages.push("No defensive building. Consider Cannon/Tesla vs Hog/RG.");
-    }
-
-    if (smallSpell === 0) {
-      messages.push("No small spell. Add Zap or Log.");
-    }
-
-    if (avgElixir > 4.0) {
-      messages.push("Elixir is high. At 3.8k trophies try 3.2–3.8 for smoother defense.");
-    } else if (avgElixir < 2.8) {
-      messages.push("Elixir is very low. Make sure you still have a real win condition.");
-    } else {
-      messages.push("Elixir cost is healthy ✅");
-    }
-
-    return {
-      avgElixir: Number(avgElixir.toFixed(2)),
-      messages,
-      airDef,
-      splash,
-      building,
-      wincon,
-      smallSpell,
-    };
-  }
-
-  function buildSuggestions(deckAnalysis, currentDeck) {
-    const s = [];
-
-    // 1) No building but we’re in hog/RG range
-    if (!deckAnalysis.building && trophies >= 3200) {
-      // find a cheap cycle card to replace
-      const replaceTarget =
-        currentDeck.includes("Skeletons") ? "Skeletons" :
-        currentDeck.includes("Minions") ? "Minions" :
-        currentDeck[currentDeck.length - 1];
-      s.push({
-        problem: "You have no defensive building.",
-        replace: replaceTarget,
-        with: "Cannon",
-        reason: "Cannon helps vs Hog Rider, Giant, Royal Giant, and Pekka kites."
-      });
-    }
-
-    // 2) Weak air
-    if (deckAnalysis.airDef === 0) {
-      s.push({
-        problem: "You are weak to air decks (Lava, Balloon, Baby Dragon spam).",
-        replace: currentDeck.includes("Skeletons") ? "Skeletons" : currentDeck[0],
-        with: currentDeck.includes("Minions") ? "Mega Minion" : "Minions",
-        reason: "You need at least 1–2 reliable air DPS cards."
-      });
-    } else if (deckAnalysis.airDef === 1) {
-      s.push({
-        problem: "Air is only covered by one card.",
-        replace: "Skeletons",
-        with: "Mega Minion",
-        reason: "Gives you second air option and survives Arrows/Log."
-      });
-    }
-
-    // 3) No big spell
-    if (deckAnalysis.smallSpell >= 1 && !currentDeck.includes("Fireball")) {
-      s.push({
-        problem: "You only have small spells.",
-        replace: currentDeck.includes("Minions") ? "Minions" : "Skeletons",
-        with: "Fireball",
-        reason: "Fireball lets you remove Musketeer/Wizard/Flying Machine behind tanks."
-      });
-    }
-
-    // 4) Elixir too high
-    if (deckAnalysis.avgElixir > 4.0) {
-      // try to swap a 5-cost support for a 3-cost support
-      if (currentDeck.includes("Witch")) {
-        s.push({
-          problem: "Deck is a bit heavy for 3.8k trophies.",
-          replace: "Witch",
-          with: "Musketeer",
-          reason: "Musketeer is cheaper, better vs air, and safer on defense."
+        const next = { ...LOCAL_CARD_DATA };
+        json.cards.forEach((c) => {
+          next[c.name] = {
+            elixir: c.elixir ?? 3,
+            role: c.role ?? [],
+            tags: c.tags ?? [],
+          };
         });
+        setCardData(next);
+      } catch (err) {
+        console.warn("Using local card data because API failed.");
       }
     }
-
-    // fallback
-    if (s.length === 0) {
-      s.push({
-        problem: "Deck is already balanced.",
-        replace: null,
-        with: null,
-        reason: "You can start upgrading Giant → Witch → Baby Dragon in that order."
-      });
-    }
-
-    return s;
-  }
+    loadCards();
+  }, []);
 
   function handleAnalyze() {
-    const result = analyzeDeck(deck);
+    const result = analyzeDeck(deck, cardData);
     setAnalysis(result);
-    const sugg = buildSuggestions(result, deck);
-    setSuggestions(sugg);
-  }
-
-  function handleAddCard() {
-    const cardName = newCard.trim();
-    if (!cardName) return;
-    let next = [...deck, cardName];
-    if (next.length > 8) next = next.slice(0, 8);
-    setDeck(next);
-    setNewCard("");
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(160deg, #0b0b0f 30%, #1f4eb3 90%)",
-        color: "#fff",
-        fontFamily: "Poppins, system-ui, -apple-system, sans-serif",
-        padding: "1.5rem",
-        maxWidth: "900px",
-        margin: "0 auto",
-      }}
-    >
-      <h1 style={{ textAlign: "center", fontSize: "2rem", marginBottom: "1rem" }}>
-        ⚔️ Clash Royale Companion
-      </h1>
+    <div className="app">
+      <header className="hero">
+        <h1>⚔️ Clash Royale Companion</h1>
+        <label className="trophy-input">
+          🏆 Enter your current trophies:
+          <input
+            type="number"
+            value={trophies}
+            onChange={(e) => setTrophies(Number(e.target.value))}
+          />
+        </label>
+      </header>
 
-      <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
-        <label style={{ fontWeight: "bold" }}>🏆 Enter your current trophies:</label>
-        <input
-          type="number"
-          value={trophies}
-          onChange={(e) => setTrophies(parseInt(e.target.value || "0", 10))}
-          style={{
-            marginLeft: "0.5rem",
-            width: "120px",
-            padding: "0.35rem",
-            borderRadius: "999px",
-            border: "none",
-            textAlign: "center",
-            background: "rgba(0,0,0,0.35)",
-            color: "#fff",
-          }}
-        />
-      </div>
-
-      {/* deck display */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-          gap: "0.75rem",
-          marginBottom: "1.5rem",
-        }}
-      >
-        {deck.map((card, i) => (
-          <div
-            key={i}
-            style={{
-              background: "rgba(255,255,255,0.14)",
-              borderRadius: "14px",
-              padding: "0.8rem .7rem",
-              textAlign: "center",
-              fontWeight: 600,
-              boxShadow: "0 2px 10px rgba(0,0,0,0.25)",
-            }}
-          >
+      <section className="deck-row">
+        {deck.map((card) => (
+          <button key={card} className="card-pill">
             {card}
-          </div>
+          </button>
         ))}
-      </div>
+      </section>
 
-      {/* add card input */}
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <input
-          value={newCard}
-          onChange={(e) => setNewCard(e.target.value)}
-          placeholder="Add/replace card (e.g. Cannon)"
-          style={{
-            flex: 1,
-            padding: "0.5rem 0.7rem",
-            borderRadius: "10px",
-            border: "none",
-            background: "rgba(0,0,0,0.15)",
-            color: "#fff",
-          }}
-        />
-        <button
-          onClick={handleAddCard}
-          style={{
-            background: "#f6b90a",
-            border: "none",
-            borderRadius: "10px",
-            padding: "0.5rem 1rem",
-            fontWeight: 600,
-            cursor: "pointer",
-            color: "#000",
-          }}
-        >
-          Add
+      <section className="tip-box">
+        <h2>💡 Strategy Tip</h2>
+        <p>
+          Use Giant–Witch–Baby Dragon as your core. Keep Zap for Inferno or Skarmy.
+          Swap Skeletons for Cannon/Tesla if you’re seeing Hog or Royal Giant a lot.
+        </p>
+      </section>
+
+      <div className="centered">
+        <button onClick={handleAnalyze} className="analyze-btn">
+          🔍 Analyze My Deck
         </button>
       </div>
 
-      {/* strategy tip (trophy-based) */}
-      <div
-        style={{
-          background: "rgba(255, 255, 255, 0.1)",
-          padding: "1rem",
-          borderRadius: "12px",
-          marginBottom: "1.2rem",
-        }}
-      >
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>💡 Strategy Tip</h2>
-        <p style={{ lineHeight: 1.5 }}>{advice}</p>
-      </div>
-
-      {/* analyze button */}
-      <button
-        onClick={handleAnalyze}
-        style={{
-          display: "block",
-          width: "100%",
-          maxWidth: "260px",
-          margin: "0 auto 1.3rem",
-          backgroundColor: "#f6b90a",
-          color: "#000",
-          border: "none",
-          borderRadius: "12px",
-          padding: "0.7rem 1rem",
-          fontWeight: "bold",
-          cursor: "pointer",
-          boxShadow: "0 4px 10px rgba(0,0,0,0.25)",
-        }}
-      >
-        🔍 Analyze My Deck
-      </button>
-
-      {/* analysis results */}
       {analysis && (
-        <div
-          style={{
-            background: "rgba(0,0,0,0.35)",
-            borderRadius: "14px",
-            padding: "1rem 1.1rem",
-            lineHeight: 1.5,
-            marginBottom: "1rem",
-          }}
-        >
-          <p style={{ marginBottom: "0.5rem" }}>
-            📊 <strong>Estimated average elixir:</strong> {analysis.avgElixir}
-          </p>
-          <ul style={{ paddingLeft: "1.2rem" }}>
-            {analysis.messages.map((m, idx) => (
-              <li key={idx} style={{ marginBottom: "0.35rem" }}>
-                {m}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <section className="analysis-box">
+          <h2>🧠 Deck Breakdown</h2>
+          <p className="big-elixir">Avg. Elixir: {analysis.avgElixir}</p>
+          <div className="summary-grid">
+            <div className="summary-item">
+              <span>Wincons</span>
+              <strong>{analysis.summary.wincon}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Air Def</span>
+              <strong>{analysis.summary.air}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Splash</span>
+              <strong>{analysis.summary.splash}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Spells</span>
+              <strong>{analysis.summary.spell}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Building</span>
+              <strong>{analysis.summary.building}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Cycle</span>
+              <strong>{analysis.summary.cycle}</strong>
+            </div>
+          </div>
+
+          <h3>Suggestions</h3>
+          {analysis.tips.length === 0 ? (
+            <p>Your deck looks balanced for ~{trophies} trophies 👌</p>
+          ) : (
+            <ul className="tip-list">
+              {analysis.tips.map((t, i) => (
+                <li key={i}>{t}</li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
 
-      {/* suggestions */}
-      {suggestions.length > 0 && (
-        <div
-          style={{
-            background: "rgba(0,0,0,0.4)",
-            borderRadius: "14px",
-            padding: "1rem 1.1rem",
-            lineHeight: 1.5,
-            marginBottom: "2rem",
-          }}
-        >
-          <h3 style={{ marginBottom: "0.5rem", fontSize: "1.05rem" }}>
-            🛠 Suggested replacements
-          </h3>
-          <ul style={{ paddingLeft: "1.2rem" }}>
-            {suggestions.map((s, idx) => (
-              <li key={idx} style={{ marginBottom: "0.5rem" }}>
-                <strong>{s.problem}</strong>
-                {s.replace && s.with ? (
-                  <>
-                    <br />
-                    Replace <strong>{s.replace}</strong> → <strong>{s.with}</strong>
-                    <br />
-                    <small style={{ opacity: 0.8 }}>{s.reason}</small>
-                  </>
-                ) : (
-                  <>
-                    <br />
-                    <small style={{ opacity: 0.8 }}>{s.reason}</small>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <footer className="footer">
+        <p>Powered by your deck + live Clash data.</p>
+      </footer>
     </div>
   );
 }
+
+export default App;
